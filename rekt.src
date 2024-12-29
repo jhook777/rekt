@@ -1,0 +1,123 @@
+// verify launch parameters
+if not params or params.len < 1 then exit "Usage: rekt [path|ip] [opt:port]"
+// include metaxploit
+metaxploit = include_lib("/lib/metaxploit.so")
+// map to store what we find
+exploits = {}
+// get our metaLib, either local or remote, depending on launch parameters
+metaLib = null
+if is_valid_ip(params[0]) then 
+	// remote
+	if params.len < 2 then exit "please provide a port as well"
+	net_session = metaxploit.net_use(params[0],params[1].to_int) 
+	if not net_session then exit "unable to connect, check ip and port"
+	metaLib = net_session.dump_lib
+else	
+	// local
+	metaLib = metaxploit.load(params[0])
+	if not metaLib then exit "invalid path"
+end if
+
+// get the list of addresses
+addresses = metaxploit.scan(metaLib)
+print addresses
+// loop through each address
+for add in addresses	
+	// gather the unsecure values
+	scanned_data = metaxploit.scan_address(metaLib, add).split( "Unsafe check: ")
+	// prepare to store the data
+	exploits[add] = []
+	// gather exploits
+	for line in scanned_data
+		if line == scanned_data[0] then continue
+		print line+char(10)+"<color=yellow> - - - "
+		// store data
+		exploits[add].push( line[ line.indexOf("<b>")+3 : line.indexOf("</b>") ] )
+	end for
+	// do it till we are done
+end for
+
+// a function to handle firing the exploit
+MEMORY = []
+inject = "password"
+if params.len > 1 and params[1] == "0" then inject = params[0] // servers get password changes, routers get bounces
+
+attack_with = function( input )
+	
+	if typeof(input) == "list" then 
+		// prepare to store the payload
+		pay_load = []
+		// input is a list:
+		// print sub_menu
+		for item in input
+			print "[<color=white>"+input.indexOf(item)+"</color>] "+item
+		end for
+		// and add selection(s) to pay_load
+		selection = null
+		while selection != "f"
+			selection = user_input("Select a value to add to paylod. Type <b>F</b> to fire payload."+char(10)+":> <color=white>")
+			if typeof(selection.to_int) == "number" and selection.to_int >= 0 and selection.to_int < input.len then 
+				pay_load.push(input[selection.to_int])
+				print pay_load
+			end if
+		end while
+		// fire payload
+		for val in pay_load
+			result = metaLib.overflow( exploits.indexOf(input), val, inject ) // fire for effect!
+			print "<color=yellow> - - - "
+			if result and result != 1 then MEMORY.push(result)
+		end for
+	else 
+		// input is a map:
+		if typeof(input) != "map" then return "invalid parameters"
+		// fire everything
+		for mem in input.indexes
+			print "Attacking Vulnerable Address: <b>"+mem.trim+char(10)
+			for val in input[mem]
+				print "Using unsec value: <b>"+val.trim
+				result = metaLib.overflow( mem, val, inject ) // fire a'broadside!
+				print "<color=yellow> - - - "
+				if result and result != 1 then MEMORY.push(result)
+			end for
+		end for
+	
+	end if
+	if MEMORY.len then return "they got rekt" else return "get rekt"
+end function
+
+
+
+///// main menu
+// put our exploits into a menu
+print char(10)+"<color=yellow> - - - "
+menu = []
+i=0
+for key in exploits.indexes
+	// print "[<color=white>" + i + "</color>]" + key + ":" + exploits[key] 
+	menu.push( "[<color=white>" + i + "</color>]" + key + ":" + exploits[key] )
+	i = i + 1
+end for
+
+print "<size=125%><b><color=white>Get Rekt v.0"+char(10)+"<color=yellow><b>Main Menu"
+// print our exploits menu
+print menu.join(char(10))
+// print a prompt
+selection = user_input("Select an index or <color=white>a</color> for all"+char(10)+":> <color=white>")
+
+// process the selection
+if selection.lower == "a" then 
+	attack_with(exploits) // attack with everything we've got!
+else
+	if typeof(selection.to_int) == "number" and selection.to_int >= 0 and selection.to_int < exploits.len then
+		attack_with(exploits[exploits.indexes[selection.to_int]]) // select an attack from the vulns in that memory address
+	end if			
+end if 
+
+
+// import the menu
+import_code("/root/rekt.so")
+my_menu = menu.init(MEMORY)
+my_menu.main
+exit "Goodbye"
+
+
