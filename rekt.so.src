@@ -1,0 +1,121 @@
+
+menu = {}
+
+menu.memory = []
+menu.init = function(mem)
+	mt = new menu
+	mt.memory = mem
+	return mt
+end function
+
+menu.main = function()
+	running = true
+	while running
+
+		// print our results located in the MEMORY list 
+		print char(10)+"<color=yellow><u>- - results - -"+char(10)+"MEMORY: "
+		i = 0
+		for thing in self.memory
+			print "[<b><color=white>"+i+"</color></b>] " + typeof(thing)
+			i = i + 1
+		end for
+
+		input = user_input("Please select an object from the list (q=quit): ").to_int 
+    	if input == "q" then exit "Goodbye"
+
+		if typeof(input) != "number" or input >= self.memory.len or input < 0 then 
+    	    print "Invalid selection, try again"
+    	    continue 
+    	end if
+
+    	object_selection = self.memory[input]
+	
+		if typeof(object_selection) == "shell" then self.handle_shell(object_selection)
+    	if typeof(object_selection) == "computer" then self.handle_computer(object_selection)
+    	if typeof(object_selection) == "file" then self.handle_file(object_selection)
+
+	end while
+end function
+
+
+menu.handle_shell = function(in_shell)
+	print "Handling: "+in_shell
+    sh_comp = in_shell.host_computer
+    self.handle_computer(sh_comp)
+    go = user_input("Should we open the shell? [y/n]"+char(10)+":> <color=white>")
+    if go.lower == "y" then in_shell.start_terminal
+end function
+
+
+menu.handle_computer = function(in_comp)
+	print "Handling: "+in_comp
+    root_folder = in_comp.File("/")
+    self.handle_file(root_folder)
+end function
+
+
+menu.handle_file = function(in_file)
+	print "Handling: "+in_file
+	
+	while in_file.path != "/" 
+        in_file = in_file.parent 
+    end while
+
+	folders = in_file.get_folders
+    etc = null
+    home = null
+
+	for folder in folders 
+        if folder.path == "/etc" then etc = folder
+        if folder.path == "/home" then home = folder
+    end for 
+
+    if etc then 
+        s = etc.get_files 
+        for f in s 
+            if f.name == "passwd" and f.has_permission("r") then 
+                print char(10)+"Found /etc/passwd"
+				print f.get_content
+            else    
+                print "/etc/passwd not found or read protected"
+            end if
+        end for
+    else 
+        print "Warning: /etc not found"
+    end if
+
+	if home then 
+        users = home.get_folders 
+
+        for user in users
+            if user.name == "Guest" then continue 
+            subs = user.get_folders 
+
+            for sub in subs 
+                if sub.name == "Config" then 
+                    files = sub.get_files
+
+                    for file in files 
+                        if file.name == "Mail.txt" or file.name == "Bank.txt" then 
+                            print char(10)+"<b>Attempting to read: "+file.path
+                            if file.has_permission("r") then print file.get_content else print "The file is read protected"
+                        end if
+                    end for     
+
+                end if
+            end for 
+        end for
+    else
+        print "Warning: /home not found"
+    end if
+end function
+
+
+
+
+
+
+
+
+
+
